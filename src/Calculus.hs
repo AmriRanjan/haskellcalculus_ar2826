@@ -33,25 +33,38 @@ binOps = Map.fromList
 
 instance Num Expr where
   fromInteger :: Integer -> Expr
-  fromInteger = undefined
-  negate      :: Expr -> Expr
-  negate      = undefined
-  (+), (*)    :: Expr -> Expr -> Expr
-  (+)         = undefined
-  (*)         = undefined
+  fromInteger n = Val (fromInteger n)
+
+  negate :: Expr -> Expr
+  negate (Val 0) = Val 0
+  negate e = Pre Neg e
+
+  (+), (*) :: Expr -> Expr -> Expr
+  (+) (Val 0) e = e
+  (+) e (Val 0) = e
+  (+) e1 e2 = Bin Add e1 e2
+
+  (*) (Val 0) _ = Val 0
+  (*) _ (Val 0) = Val 0
+  (*) (Val 1) e = e
+  (*) e (Val 1) = e
+  (*) e1 e2 = Bin Mul e1 e2
 
 instance Fractional Expr where
   fromRational :: Rational -> Expr
-  fromRational = undefined
-  (/)          :: Expr -> Expr -> Expr
-  (/)          = undefined
+  fromRational r = Val (fromRational r)
+
+  (/) :: Expr -> Expr -> Expr
+  (/) (Val 0) _ = Val 0
+  (/) e (Val 1) = e
+  (/) e1 e2 = Bin Div e1 e2
 
 instance Floating Expr where
   sin, cos, log, exp :: Expr -> Expr
-  sin = undefined
-  cos = undefined
-  log = undefined
-  exp = undefined
+  sin e = Pre Sin e
+  cos e = Pre Cos e
+  log e = Pre Log e
+  exp e = Pre Exp e
 
 ---------------------------------------------------------------------------
 
@@ -104,9 +117,20 @@ pretty = show
 {-|
 Symbolically differentiates a term with respect to a given identifier.
 -}
-diff :: Expr -> String -> Expr
-diff = undefined
-
+diff :: String -> Expr -> Expr
+diff _ (Val _) = Val 0.0
+diff x (Id var)
+ | x == var = Val 1.0
+ | otherwise = Val 0.0
+diff x (Bin Add e1 e2) = diff x e1 + diff x e2
+diff x (Bin Mul e1 e2) = e1 * diff x e2 + diff x e1 * e2
+diff x (Bin Div e1 e2) =
+  (diff x e1 * e2 - e1 * diff x e2) / (e2 * e2)
+diff x (Pre Neg e) = negate (diff x e)
+diff x (Pre Sin e) = cos e * diff x e
+diff x (Pre Cos e) = negate (sin e) * diff x e
+diff x (Pre Log e) = diff x e / e
+diff x (Pre Exp e) = exp e * diff x e
 {-|
 Computes the approximation of an expression `f` by expanding the Maclaurin
 series on `f` and taking its summation.
@@ -114,8 +138,18 @@ series on `f` and taking its summation.
 maclaurin :: Expr   -- ^ expression to approximate (with `x` free)
           -> Double -- ^ value to give to `x`
           -> Int    -- ^ number of terms to expand
-          -> Double -- ^ the approximate result
-maclaurin = undefined
+          -> Maybe Double -- ^ the approximate result
+maclaurin e x n
+ | not (inTermsOf "x" e) = Nothing
+ | n < 0 = Nothing
+ | otherwise = Just (foldl (+) 0 (take (max 1 n) terms))
+ where
+  derivatives = iterate (diff "x") e
+  powers = iterate (* x) 1
+  factorials = scanl (*) 1 [1..]
+  env = Map.singleton "x" 0
+  terms = 
+    zipWith3 (\d p f -> eval env d * p / f) derivatives powers factorials
 
 -- Extension
 instance Num a => Num [a] where
