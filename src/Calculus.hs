@@ -1,4 +1,4 @@
-module Calculus (vars, inTermsOf, eval, pretty, diff, maclaurin, pi) where
+module Calculus (sumTo, vars, inTermsOf, eval, pretty, diff, maclaurin, pi) where
 
 import Prelude hiding (pi)
 
@@ -11,6 +11,22 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 
 type Env = Map String Double
+
+preOps :: Map PreOp (Double -> Double)
+preOps = Map.fromList
+  [ (Neg, negate)
+  , (Sin, sin)
+  , (Cos, cos)
+  , (Log, log)
+  , (Exp, exp)
+  ]
+
+binOps :: Map BinOp (Double -> Double -> Double)
+binOps = Map.fromList
+  [ (Add, (+))
+  , (Mul, (*))
+  , (Div, (/))
+  ]
 
 ---------------------------------------------------------------------------
 -- Type classes and class instances
@@ -43,26 +59,41 @@ instance Floating Expr where
 Computes the sum of first `n` terms of the given series.
 -}
 sumTo :: Num a => Int -> [a] -> a
-sumTo = undefined
+sumTo n xs = foldl (+) 0 (take n xs)
 
 {-|
 Computes the set of variable names that appear within the given expression.
 -}
 vars :: Expr -> Set String
-vars = undefined
+vars (Val _) = Set.empty
+vars (Id e) = Set.singleton e
+vars (Pre _ e) = vars e
+vars (Bin _ e1 e2) = Set.union (vars e1) (vars e2)
 
 {-|
 Does the given expression only use the given variable and no others?
 -}
 inTermsOf :: String -> Expr -> Bool
-inTermsOf = undefined
+inTermsOf x e = Set.isSubsetOf (vars e) (Set.singleton x)
 
 {-|
 Evaluates a given expression, evaluating any variables to their value within
 the provided environment.
 -}
-eval :: Expr -> Env -> Double
-eval = undefined
+eval :: Env -> Expr -> Double
+eval env (Val n) = n
+eval env (Id x) = env ! x
+eval env (Pre op e) = (preOps ! op) (eval env e)
+eval env (Bin op e1 e2) =
+  (binOps ! op) (eval env e1) (eval env e2)
+
+-- We could also use Map.! like below, but just having ! is more clean
+-- eval :: Env -> Expr -> Double
+-- eval env (Val n) = n
+-- eval env (Id x) = env Map.! x
+-- eval env (Pre op e) = (preOps Map.! op) (eval env e)
+-- eval env (Bin op e1 e2) =
+--   (binOps Map.! op) (eval env e1) (eval env e2)
 
 {-| OPTIONAL
 Pretty prints an expression to a more human-readable form.
