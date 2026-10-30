@@ -130,7 +130,7 @@ diff x (Pre Neg e) = negate (diff x e)
 diff x (Pre Sin e) = cos e * diff x e
 diff x (Pre Cos e) = negate (sin e) * diff x e
 diff x (Pre Log e) = diff x e / e
-diff x (Pre Exp e) = exp e * diff x e
+diff x (Pre Exp e) = diff x e * exp e
 {-|
 Computes the approximation of an expression `f` by expanding the Maclaurin
 series on `f` and taking its summation.
